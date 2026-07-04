@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fighter Jet — Custom Combat</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;cursor:crosshair}
+main{width:100%;height:100%}
+canvas{display:block;position:fixed;top:0;left:0}
+
+/* ── Settings Panel ── */
+#settings-overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at center,rgba(10,12,20,0.92) 0%,rgba(0,0,0,0.97) 100%)}
+#settings-box{width:420px;padding:36px 32px 28px;border-radius:14px;
+  background:linear-gradient(160deg,rgba(20,22,30,0.95),rgba(12,14,20,0.98));
+  border:1px solid rgba(255,255,255,0.06);
+  box-shadow:0 0 60px rgba(255,140,40,0.06),0 2px 20px rgba(0,0,0,0.5)}
+#settings-box h1{font:700 20px/1.2 'Courier New',monospace;color:rgba(255,200,120,0.85);
+  text-align:center;letter-spacing:4px;margin-bottom:6px;
+  text-shadow:0 0 15px rgba(255,140,40,0.25)}
+#settings-box .sub{font:11px/1 'Courier New',monospace;color:rgba(140,160,180,0.4);
+  text-align:center;margin-bottom:28px;letter-spacing:2px}
+.slider-group{margin-bottom:16px}
+.slider-group label{display:flex;justify-content:space-between;align-items:baseline;
+  font:12px/1 'Courier New',monospace;color:rgba(180,190,200,0.7);margin-bottom:6px;letter-spacing:1px}
+.slider-group label span.val{color:rgba(255,200,120,0.8);font-weight:700;min-width:48px;text-align:right}
+.slider-group input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;
+  background:rgba(255,255,255,0.08);outline:none;cursor:pointer}
+.slider-group input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;
+  border-radius:50%;background:rgba(255,180,60,0.9);border:2px solid rgba(255,220,120,0.5);
+  box-shadow:0 0 8px rgba(255,140,40,0.4);cursor:pointer;transition:transform .15s}
+.slider-group input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
+.slider-group input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
+  background:rgba(255,180,60,0.9);border:2px solid rgba(255,220,120,0.5);cursor:pointer}
+#btn-start{display:block;width:100%;margin-top:24px;padding:14px;border:none;border-radius:8px;
+  font:700 15px/1 'Courier New',monospace;letter-spacing:4px;cursor:pointer;
+  color:#000;background:linear-gradient(90deg,#ff8020,#ffcc40);
+  box-shadow:0 0 20px rgba(255,140,40,0.3);transition:all .2s}
+#btn-start:hover{box-shadow:0 0 30px rgba(255,140,40,0.5);transform:translateY(-1px)}
+.divider{height:1px;background:rgba(255,255,255,0.04);margin:20px 0}
+
+/* ── HUD (same as combat) ── */
+#hud-top{position:fixed;top:18px;left:50%;transform:translateX(-50%);
+  font:600 22px/1 'Courier New',monospace;color:rgba(255,200,120,0.7);
+  text-align:center;pointer-events:none;letter-spacing:3px;user-select:none;
+  text-shadow:0 0 12px rgba(255,140,40,0.3)}
+#combo{position:fixed;top:48px;left:50%;transform:translateX(-50%);
+  font:700 16px/1 'Courier New',monospace;color:rgba(255,80,40,0.8);
+  pointer-events:none;user-select:none;opacity:0;transition:opacity .2s}
+#combo.show{opacity:1}
+#hud-bottom{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  font:12px/1.6 'Courier New',monospace;color:rgba(140,160,180,0.4);
+  text-align:center;pointer-events:none;letter-spacing:1px;user-select:none}
+#speed-bar{position:fixed;bottom:52px;left:50%;transform:translateX(-50%);
+  width:160px;height:2px;background:rgba(255,255,255,0.06);border-radius:2px;
+  pointer-events:none;overflow:hidden}
+#speed-fill{height:100%;width:0%;background:linear-gradient(90deg,#ff8020,#ffcc40);
+  border-radius:2px;transition:width .12s}
+#enemy-count{position:fixed;top:18px;right:28px;
+  font:600 13px/1 'Courier New',monospace;color:rgba(255,100,80,0.5);
+  pointer-events:none;user-select:none}
+</style>
+</head>
+<body>
+<main data-component="fighter-jet-combat">
+<canvas id="c" data-component="canvas-layer"></canvas>
+</main>
+
+<!-- Settings Overlay -->
+<div id="settings-overlay">
+  <div id="settings-box">
+    <h1>COMBAT CONFIG</h1>
+    <div class="sub">ADJUST PARAMETERS BEFORE LAUNCH</div>
+
+    <div class="slider-group">
+      <label>飞行速度 MAX SPEED <span class="val" id="v-speed">550</span></label>
+      <input type="range" id="s-speed" min="200" max="1200" value="550" step="10">
+    </div>
+    <div class="slider-group">
+      <label>子弹速度 BULLET SPEED <span class="val" id="v-bullet">900</span></label>
+      <input type="range" id="s-bullet" min="300" max="2000" value="900" step="50">
+    </div>
+    <div class="slider-group">
+      <label>敌机数量 MAX ENEMIES <span class="val" id="v-enemies">10</span></label>
+      <input type="range" id="s-enemies" min="2" max="40" value="10" step="1">
+    </div>
+    <div class="slider-group">
+      <label>敌机大小 ENEMY SIZE <span class="val" id="v-esize">1.0×</span></label>
+      <input type="range" id="s-esize" min="0.3" max="2.5" value="1.0" step="0.1">
+    </div>
+    <div class="slider-group">
+      <label>加速度 ACCEL <span class="val" id="v-accel">1.4</span></label>
+      <input type="range" id="s-accel" min="0.3" max="4.0" value="1.4" step="0.1">
+    </div>
+    <div class="slider-group">
+      <label>灵敏度 SENSITIVITY <span class="val" id="v-sense">5.5</span></label>
+      <input type="range" id="s-sense" min="1.0" max="15.0" value="5.5" step="0.5">
+    </div>
+
+    <div class="divider"></div>
+    <button id="btn-start">LAUNCH</button>
+  </div>
+</div>
+
+<div id="hud-top" style="display:none">SCORE: 0</div>
+<div id="combo"></div>
+<div id="speed-bar" style="display:none"><div id="speed-fill"></div></div>
+<div id="hud-bottom" style="display:none">↑/W 加速 ↓/S 减速 ←→/AD 转向 SPACE 加力 · 自动开火</div>
+<div id="enemy-count"></div>
+
+<script>
+/* ================================================================
+   FIGHTER JET — CUSTOM COMBAT (Settings Panel)
+   ================================================================ */
+
+// ─── Config (populated from settings panel) ────────────────────
+const CFG = {
+  maxSpeed: 550,
+  bulletSpeed: 900,
+  maxEnemies: 10,
+  enemySizeMul: 1.0,
+  accel: 1.4,
+  sensitivity: 5.5
+};
+
+// ─── Settings Panel Logic ──────────────────────────────────────
+const sliders = [
+  { id:'s-speed',   vid:'v-speed',   key:'maxSpeed',     fmt:v=>v },
+  { id:'s-bullet',  vid:'v-bullet',  key:'bulletSpeed',  fmt:v=>v },
+  { id:'s-enemies', vid:'v-enemies',  key:'maxEnemies',   fmt:v=>v },
+  { id:'s-esize',   vid:'v-esize',   key:'enemySizeMul', fmt:v=>v.toFixed(1)+'×' },
+  { id:'s-accel',   vid:'v-accel',   key:'accel',        fmt:v=>parseFloat(v).toFixed(1) },
+  { id:'s-sense',   vid:'v-sense',   key:'sensitivity',  fmt:v=>parseFloat(v).toFixed(1) }
+];
+
+sliders.forEach(s => {
+  const input = document.getElementById(s.id);
+  const valEl = document.getElementById(s.vid);
+  input.addEventListener('input', () => {
+    const v = parseFloat(input.value);
+    CFG[s.key] = v;
+    valEl.textContent = s.fmt(v);
+  });
+});
+
+let gameStarted = false;
+document.getElementById('btn-start').addEventListener('click', () => {
+  document.getElementById('settings-overlay').style.display = 'none';
+  document.getElementById('hud-top').style.display = '';
+  document.getElementById('speed-bar').style.display = '';
+  document.getElementById('hud-bottom').style.display = '';
+  gameStarted = true;
+  requestAnimationFrame(frame);
+});
+
+// ─── Canvas Setup ──────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d', { alpha: false });
+let W, H;
+const sceneCvs = document.createElement('canvas');
+const sCtx = sceneCvs.getContext('2d');
+const distCvs = document.createElement('canvas');
+const dCtx = distCvs.getContext('2d');
+
+function resize() {
+  W = canvas.width = sceneCvs.width = distCvs.width = window.innerWidth;
+  H = canvas.height = sceneCvs.height = distCvs.height = window.innerHeight;
+  initStars();
+}
+window.addEventListener('resize', resize);
+
+// ─── Input ─────────────────────────────────────────────────────
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// ─── Jet State ─────────────────────────────────────────────────
+const JET_SCALE = 0.5;
+const jet = {
+  x:0,y:0,angle:0,angVel:0,speed:300,throttle:0.65,boost:0,
+  afterburner:true,fireCooldown:0,fireRate:0.1,
+  hp:5,maxHp:5,invuln:0,kills:0,score:0,combo:0,comboTimer:0
+};
+const cam = {x:0,y:0};
+
+function updateJet(dt) {
+  const turnRate = CFG.sensitivity;
+  const turnDamp = 4.0;
+  const throttleRate = CFG.accel;
+
+  if (keys['ArrowLeft']||keys['KeyA']) jet.angVel -= turnRate*dt;
+  if (keys['ArrowRight']||keys['KeyD']) jet.angVel += turnRate*dt;
+  jet.angVel *= (1-turnDamp*dt);
+  jet.angle += jet.angVel*dt;
+
+  if (!keys['ArrowLeft']&&!keys['ArrowRight']&&!keys['KeyA']&&!keys['KeyD']) {
+    while(jet.angle>Math.PI)jet.angle-=Math.PI*2;
+    while(jet.angle<-Math.PI)jet.angle+=Math.PI*2;
+    jet.angle *= (1-1.2*dt);
+  }
+
+  if (keys['ArrowUp']||keys['KeyW']) jet.throttle=Math.min(1,jet.throttle+throttleRate*dt);
+  if (keys['ArrowDown']||keys['KeyS']) jet.throttle=Math.max(0.1,jet.throttle-throttleRate*dt);
+
+  const wantBoost=!!keys['Space'];
+  jet.boost += ((wantBoost?1:0)-jet.boost)*(wantBoost?6:3)*dt;
+
+  const maxSpd = CFG.maxSpeed;
+  jet.speed = 100 + (maxSpd-100)*jet.throttle + 200*jet.boost;
+  jet.afterburner = jet.throttle>0.3||jet.boost>0.2;
+  jet.x += Math.cos(jet.angle)*jet.speed*dt;
+  jet.y += Math.sin(jet.angle)*jet.speed*dt;
+  if (jet.invuln>0) jet.invuln-=dt;
+  if (jet.comboTimer>0){jet.comboTimer-=dt;if(jet.comboTimer<=0)jet.combo=0}
+}
+
+function updateCamera(dt) {
+  const look=60+jet.speed*0.12;
+  const tx=jet.x+Math.cos(jet.angle)*look, ty=jet.y+Math.sin(jet.angle)*look;
+  const lerp=1-Math.pow(0.03,dt);
+  cam.x+=(tx-cam.x)*lerp; cam.y+=(ty-cam.y)*lerp;
+}
+
+// ─── Noise ─────────────────────────────────────────────────────
+const PERM=new Uint8Array(512);
+(function(){const p=new Uint8Array(256);for(let i=0;i<256;i++)p[i]=i;for(let i=255;i>0;i--){const j=Math.floor(Math.random()*(i+1));[p[i],p[j]]=[p[j],p[i]]}for(let i=0;i<512;i++)PERM[i]=p[i&255]})();
+function hashN(ix,iy){return PERM[(PERM[ix&255]+iy)&255]/255}
+function noise2D(x,y){const ix=Math.floor(x),iy=Math.floor(y),fx=x-ix,fy=y-iy;const ux=fx*fx*(3-2*fx),uy=fy*fy*(3-2*fy);const a=hashN(ix,iy),b=hashN(ix+1,iy),c=hashN(ix,iy+1),d=hashN(ix+1,iy+1);return a+(b-a)*ux+(c-a)*uy+(a-b-c+d)*ux*uy}
+function fbm(x,y,o){let v=0,a=.5,f=1;for(let i=0;i<o;i++){v+=a*noise2D(x*f,y*f);a*=.5;f*=2.1}return v}
+
+// ─── Stars ─────────────────────────────────────────────────────
+let stars=[];
+function initStars(){stars=[];const layers=[{count:300,minR:.4,maxR:1,px:.04,br:[.3,.6]},{count:160,minR:.8,maxR:1.6,px:.15,br:[.5,.8]},{count:60,minR:1.2,maxR:2.8,px:.4,br:[.7,1]}];for(const L of layers)for(let i=0;i<L.count;i++)stars.push({sx:Math.random()*W,sy:Math.random()*H,r:L.minR+Math.random()*(L.maxR-L.minR),parallax:L.px,bright:L.br[0]+Math.random()*(L.br[1]-L.br[0]),tp:Math.random()*6.28,ts:.5+Math.random()*2,hue:Math.random()<.15?(Math.random()<.5?30:220):0,sat:Math.random()<.15?40:0})}
+function drawStars(dt,t){const m=20;for(const s of stars){s.sx-=cam.x*s.parallax*.01;s.sy-=cam.y*s.parallax*.01;s.sx-=jet.speed*.08*(.5+s.parallax)*dt;if(s.sx<-m)s.sx+=W+m*2;if(s.sx>W+m)s.sx-=W+m*2;if(s.sy<-m)s.sy+=H+m*2;if(s.sy>H+m)s.sy-=H+m*2;const tw=.6+.4*Math.sin(t*s.ts+s.tp),al=s.bright*tw;const sl=Math.min(s.r*(jet.speed/300)*8,40*s.parallax);if(sl>2){sCtx.strokeStyle=`rgba(${200+s.hue*.3},${200+(255-s.hue)*.2},255,${al*.25})`;sCtx.lineWidth=s.r*.4;sCtx.beginPath();sCtx.moveTo(s.sx,s.sy);sCtx.lineTo(s.sx-Math.cos(jet.angle)*sl,s.sy-Math.sin(jet.angle)*sl);sCtx.stroke()}sCtx.fillStyle=s.sat>0?`hsla(${s.hue},${s.sat}%,85%,${al})`:`rgba(255,255,255,${al})`;sCtx.beginPath();sCtx.arc(s.sx,s.sy,s.r*.5,0,6.28);sCtx.fill();if(s.bright>.8&&s.r>1.5){sCtx.fillStyle=`rgba(180,200,255,${al*.12})`;sCtx.beginPath();sCtx.arc(s.sx,s.sy,s.r*2,0,6.28);sCtx.fill()}}}
+
+// ─── Bokeh ─────────────────────────────────────────────────────
+const bokeh=[];
+function initBokeh(){for(let i=0;i<22;i++)bokeh.push({x:Math.random()*W,y:Math.random()*H,r:8+Math.random()*25,sp:20+Math.random()*60,al:.02+Math.random()*.06,hue:Math.random()*60-10})}
+function updateBokeh(dt){for(const p of bokeh){p.x-=Math.cos(jet.angle)*jet.speed*.25*dt;p.y-=Math.sin(jet.angle)*jet.speed*.25*dt;if(p.x<-p.r*2||p.x>W+p.r*2||p.y<-p.r*2||p.y>H+p.r*2){const e=Math.floor(Math.random()*4);if(e===0){p.x=-p.r;p.y=Math.random()*H}else if(e===1){p.x=W+p.r;p.y=Math.random()*H}else if(e===2){p.y=-p.r;p.x=Math.random()*W}else{p.y=H+p.r;p.x=Math.random()*W}}}}
+function drawBokeh(){for(const p of bokeh){const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r);g.addColorStop(0,`hsla(${p.hue},20%,70%,${p.al*1.5})`);g.addColorStop(.5,`hsla(${p.hue},15%,60%,${p.al*.6})`);g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.28);ctx.fill()}}
+
+// ─── Contrails ─────────────────────────────────────────────────
+const contrails=[];const CT_MAX=800;
+function emitCT(wx,wy,vx,vy){contrails.push({x:wx+(Math.random()-.5)*4,y:wy+(Math.random()-.5)*4,vx:vx*.1+(Math.random()-.5)*6,vy:vy*.1+(Math.random()-.5)*6,age:0,sz:1+Math.random()*.8,life:3+Math.random()*2});if(contrails.length>CT_MAX)contrails.splice(0,contrails.length-CT_MAX)}
+function updateAndDrawContrails(dt,t){const c=Math.cos(jet.angle),s=Math.sin(jet.angle);const eLX=-70;const e1x=jet.x+eLX*c-(-4)*s,e1y=jet.y+eLX*s+(-4)*c;const e2x=jet.x+eLX*c-4*s,e2y=jet.y+eLX*s+4*c;const wLX=-20,wL1=-31,wL2=34;const w1x=jet.x+wLX*c-wL1*s,w1y=jet.y+wLX*s+wL1*c;const w2x=jet.x+wLX*c-wL2*s,w2y=jet.y+wLX*s+wL2*c;const vx=Math.cos(jet.angle)*jet.speed,vy=Math.sin(jet.angle)*jet.speed;const n=Math.ceil(2+jet.boost*4);for(let i=0;i<n;i++){emitCT(e1x,e1y,-vx,-vy);emitCT(e2x,e2y,-vx,-vy);if(jet.boost>.3){emitCT(w1x,w1y,-vx*.3,-vy*.3);emitCT(w2x,w2y,-vx*.3,-vy*.3)}}sCtx.save();for(let i=contrails.length-1;i>=0;i--){const p=contrails[i];p.age+=dt;if(p.age>p.life){contrails.splice(i,1);continue}p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=(1-1.5*dt);p.vy*=(1-1.5*dt);p.x+=(noise2D(p.x*.008+t*.5,p.y*.008)-.5)*20*dt;p.y+=(noise2D(p.x*.008,p.y*.008+t*.5)-.5)*20*dt;const sx=p.x-cam.x+W/2,sy=p.y-cam.y+H/2;if(sx<-50||sx>W+50||sy<-50||sy>H+50)continue;const pr=p.age/p.life,al=(1-pr)*.2*(1+jet.boost*.5),sz=p.sz+pr*10;sCtx.fillStyle=`rgba(180,200,220,${al})`;sCtx.beginPath();sCtx.arc(sx,sy,sz,0,6.28);sCtx.fill()}sCtx.restore()}
+
+// ─── Jet Drawing ───────────────────────────────────────────────
+function drawJet(c){c.save();c.rotate(jet.angle);c.scale(JET_SCALE,JET_SCALE);if(jet.invuln>0&&Math.sin(jet.invuln*30)>0){c.globalAlpha=0.4}
+let g=c.createLinearGradient(0,-60,0,-10);g.addColorStop(0,'#383840');g.addColorStop(1,'#4a4a52');c.fillStyle=g;c.beginPath();c.moveTo(15,-12);c.lineTo(-35,-62);c.lineTo(-50,-58);c.lineTo(-48,-12);c.closePath();c.fill();c.strokeStyle='rgba(0,0,0,0.3)';c.lineWidth=.5;c.beginPath();c.moveTo(-5,-20);c.lineTo(-40,-55);c.stroke();c.fillStyle='rgba(255,40,40,0.9)';c.beginPath();c.arc(-42,-60,2,0,6.28);c.fill();c.fillStyle='rgba(255,60,60,0.25)';c.beginPath();c.arc(-42,-60,8,0,6.28);c.fill();
+g=c.createLinearGradient(0,-16,0,16);g.addColorStop(0,'#5a5a62');g.addColorStop(.3,'#72727a');g.addColorStop(.5,'#80808a');g.addColorStop(.7,'#68686f');g.addColorStop(1,'#404048');c.fillStyle=g;c.beginPath();c.moveTo(168,0);c.lineTo(140,-5);c.lineTo(110,-9);c.lineTo(70,-13);c.lineTo(30,-14);c.lineTo(-20,-15);c.lineTo(-80,-16);c.lineTo(-120,-17);c.lineTo(-138,-14);c.lineTo(-140,-8);c.lineTo(-142,0);c.lineTo(-140,8);c.lineTo(-138,14);c.lineTo(-120,17);c.lineTo(-80,16);c.lineTo(-20,15);c.lineTo(30,14);c.lineTo(70,13);c.lineTo(110,9);c.lineTo(140,5);c.closePath();c.fill();
+g=c.createLinearGradient(0,-16,0,-6);g.addColorStop(0,'rgba(255,255,255,0.02)');g.addColorStop(.4,'rgba(255,255,255,0.12)');g.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=g;c.beginPath();c.moveTo(160,-1);c.lineTo(110,-8);c.lineTo(30,-13);c.lineTo(-120,-16);c.lineTo(-120,-10);c.lineTo(30,-8);c.lineTo(110,-4);c.closePath();c.fill();c.strokeStyle='rgba(120,160,200,0.15)';c.lineWidth=1.2;c.beginPath();c.moveTo(168,0);c.lineTo(110,-9);c.lineTo(30,-14);c.lineTo(-120,-17);c.stroke();c.strokeStyle='rgba(0,0,0,0.25)';c.lineWidth=.6;[[130,-4,130,4],[100,-8,100,8],[50,-12,50,12],[0,-14,0,14],[-50,-15,-50,15],[-90,-16,-90,16],[160,0,-140,0]].forEach(l=>{c.beginPath();c.moveTo(l[0],l[1]);c.lineTo(l[2],l[3]);c.stroke()});
+g=c.createLinearGradient(90,-16,130,-4);g.addColorStop(0,'rgba(40,140,160,0.85)');g.addColorStop(.3,'rgba(80,200,220,0.7)');g.addColorStop(.5,'rgba(180,240,255,0.5)');g.addColorStop(.7,'rgba(60,160,180,0.75)');g.addColorStop(1,'rgba(30,80,100,0.9)');c.fillStyle=g;c.beginPath();c.moveTo(140,-5);c.quadraticCurveTo(125,-16,90,-14);c.lineTo(75,-13);c.quadraticCurveTo(80,-8,100,-6);c.lineTo(130,-5);c.closePath();c.fill();c.strokeStyle='rgba(50,50,55,0.8)';c.lineWidth=1;c.stroke();c.fillStyle='rgba(255,255,255,0.2)';c.beginPath();c.moveTo(130,-8);c.quadraticCurveTo(118,-14,105,-13);c.quadraticCurveTo(115,-11,125,-7);c.closePath();c.fill();
+c.fillStyle='#1a1a20';c.beginPath();c.moveTo(55,-13);c.lineTo(30,-15);c.lineTo(10,-15);c.lineTo(10,-13);c.lineTo(30,-13);c.closePath();c.fill();
+g=c.createLinearGradient(0,10,0,68);g.addColorStop(0,'#6a6a72');g.addColorStop(.3,'#58585f');g.addColorStop(1,'#3a3a42');c.fillStyle=g;c.beginPath();c.moveTo(15,12);c.lineTo(-35,68);c.lineTo(-55,64);c.lineTo(-48,12);c.closePath();c.fill();g=c.createLinearGradient(0,12,0,30);g.addColorStop(0,'rgba(255,255,255,0.1)');g.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=g;c.beginPath();c.moveTo(15,12);c.lineTo(-20,40);c.lineTo(-35,38);c.lineTo(-10,12);c.closePath();c.fill();c.fillStyle='rgba(40,255,40,0.9)';c.beginPath();c.arc(-45,66,2,0,6.28);c.fill();c.fillStyle='rgba(60,255,60,0.25)';c.beginPath();c.arc(-45,66,8,0,6.28);c.fill();
+c.fillStyle='#44444c';c.beginPath();c.moveTo(-100,-16);c.lineTo(-128,-40);c.lineTo(-140,-38);c.lineTo(-135,-16);c.closePath();c.fill();c.fillStyle='#52525a';c.beginPath();c.moveTo(-100,16);c.lineTo(-128,42);c.lineTo(-140,40);c.lineTo(-135,16);c.closePath();c.fill();g=c.createLinearGradient(-115,-17,-115,-58);g.addColorStop(0,'#5a5a62');g.addColorStop(.5,'#4a4a52');g.addColorStop(1,'#3a3a42');c.fillStyle=g;c.beginPath();c.moveTo(-100,-17);c.lineTo(-118,-55);c.lineTo(-136,-50);c.lineTo(-132,-17);c.closePath();c.fill();
+c.fillStyle='#18181c';c.beginPath();c.ellipse(-140,-8,6,7,0,0,6.28);c.fill();c.strokeStyle='#555';c.lineWidth=1.5;c.stroke();let ng=c.createRadialGradient(-140,-8,0,-140,-8,6);ng.addColorStop(0,'rgba(255,200,100,0.5)');ng.addColorStop(1,'rgba(255,100,30,0.1)');c.fillStyle=ng;c.beginPath();c.ellipse(-140,-8,5,6,0,0,6.28);c.fill();c.fillStyle='#18181c';c.beginPath();c.ellipse(-140,8,6,7,0,0,6.28);c.fill();c.strokeStyle='#555';c.lineWidth=1.5;c.stroke();ng=c.createRadialGradient(-140,8,0,-140,8,6);ng.addColorStop(0,'rgba(255,200,100,0.5)');ng.addColorStop(1,'rgba(255,100,30,0.1)');c.fillStyle=ng;c.beginPath();c.ellipse(-140,8,5,6,0,0,6.28);c.fill();
+c.globalAlpha=.12;c.strokeStyle='#aaa';c.lineWidth=1;c.beginPath();c.arc(-20,8,8,0,6.28);c.stroke();c.beginPath();c.arc(-20,8,5,0,6.28);c.stroke();c.restore()}
+
+// ─── Afterburner ───────────────────────────────────────────────
+function drawAfterburner(c,t){c.save();c.rotate(jet.angle);c.scale(JET_SCALE,JET_SCALE);c.globalCompositeOperation='lighter';const inten=.5+jet.throttle*.5+jet.boost*.6;for(const nzY of[-8,8]){const fl=(0.85+0.15*Math.sin(t*47+nzY*3)*Math.cos(t*31))*inten;const tn=fbm(t*3,nzY*.1,3);const fLen=(100+tn*40+jet.boost*80)*inten;const fW=(10+tn*4+jet.boost*6)*inten;let g=c.createRadialGradient(-170,nzY,0,-190,nzY,130*fl);g.addColorStop(0,`rgba(180,30,0,${.15*fl})`);g.addColorStop(.5,`rgba(120,10,0,${.06*fl})`);g.addColorStop(1,'rgba(80,0,0,0)');c.fillStyle=g;c.fillRect(-320,nzY-110,200,220);g=c.createRadialGradient(-150,nzY,2,-180,nzY,fLen*.7*fl);g.addColorStop(0,`rgba(255,160,20,${.7*fl})`);g.addColorStop(.3,`rgba(255,100,10,${.45*fl})`);g.addColorStop(.7,`rgba(200,40,0,${.15*fl})`);g.addColorStop(1,'rgba(100,10,0,0)');c.fillStyle=g;c.beginPath();c.moveTo(-140,nzY-fW*.4);for(let i=0;i<=16;i++){const p=i/16,fx=-140-p*fLen,bw=fW*(1-p*.8)*(.3+.7*Math.sqrt(1-p)),w=noise2D(p*6+t*4,nzY*.1+t*2)*6*p;c.lineTo(fx,nzY-bw+w)}for(let i=16;i>=0;i--){const p=i/16,fx=-140-p*fLen,bw=fW*(1-p*.8)*(.3+.7*Math.sqrt(1-p)),w=noise2D(p*6+t*4+100,nzY*.1+t*2)*6*p;c.lineTo(fx,nzY+bw+w)}c.closePath();c.fill();const cLen=(35+jet.boost*25)*fl;g=c.createRadialGradient(-140,nzY,1,-155,nzY,cLen);g.addColorStop(0,`rgba(255,255,240,${.95*fl})`);g.addColorStop(.3,`rgba(255,240,180,${.7*fl})`);g.addColorStop(.6,`rgba(255,180,60,${.35*fl})`);g.addColorStop(1,'rgba(255,100,20,0)');c.fillStyle=g;c.beginPath();c.moveTo(-138,nzY);for(let i=0;i<=10;i++){const p=i/10,fx=-140-p*cLen,w=5*(1-p*.9),wb=noise2D(p*8+t*6,nzY*.2)*2*p;c.lineTo(fx,nzY-w+wb)}for(let i=10;i>=0;i--){const p=i/10,fx=-140-p*cLen,w=5*(1-p*.9),wb=noise2D(p*8+t*6+50,nzY*.2)*2*p;c.lineTo(fx,nzY+w+wb)}c.closePath();c.fill();for(let i=0;i<6;i++){const dp=(i+.5)/6,dx=-152-dp*fLen*.55,da=(1-dp*.8)*.35*fl,ds=(5+dp*3)*(1-dp*.3),pu=.7+.3*Math.sin(t*25+i*1.8);c.fillStyle=`rgba(255,255,220,${da*pu})`;c.beginPath();c.moveTo(dx+ds,nzY);c.lineTo(dx,nzY-ds*.5);c.lineTo(dx-ds,nzY);c.lineTo(dx,nzY+ds*.5);c.closePath();c.fill()}c.strokeStyle=`rgba(255,200,100,${.4*fl})`;c.lineWidth=2;c.beginPath();c.ellipse(-140,nzY,7,8,0,-1.57,1.57);c.stroke()}g=c.createRadialGradient(-140,0,0,-140,0,160+jet.boost*60);g.addColorStop(0,`rgba(255,120,30,${.06*inten})`);g.addColorStop(.5,`rgba(200,60,10,${.02*inten})`);g.addColorStop(1,'rgba(100,20,0,0)');c.fillStyle=g;c.fillRect(-300,-160,320,320);c.restore()}
+
+function drawAmbientLighting(c){c.save();c.rotate(jet.angle);c.scale(JET_SCALE,JET_SCALE);c.globalCompositeOperation='lighter';const g=c.createLinearGradient(-140,0,40,0);g.addColorStop(0,'rgba(255,120,40,0.08)');g.addColorStop(.5,'rgba(255,80,20,0.03)');g.addColorStop(1,'rgba(200,60,10,0)');c.fillStyle=g;c.beginPath();c.moveTo(-140,-18);c.lineTo(40,-10);c.lineTo(40,10);c.lineTo(-140,18);c.closePath();c.fill();c.restore()}
+
+// ─── Enemies (uses CFG) ────────────────────────────────────────
+const enemies=[];let enemySpawnTimer=0;
+const ENEMY_TYPES={
+  scout:{hp:1,speed:[180,280],scale:0.28,color:'#884444',score:100},
+  bomber:{hp:3,speed:[100,170],scale:0.4,color:'#665544',score:250}
+};
+function spawnEnemy(){const angle=Math.random()*Math.PI*2;const dist=Math.max(W,H)*0.7;const type=Math.random()<0.65?'scout':'bomber';const cfg=ENEMY_TYPES[type];const sp=cfg.speed[0]+Math.random()*(cfg.speed[1]-cfg.speed[0]);enemies.push({x:jet.x+Math.cos(angle)*dist,y:jet.y+Math.sin(angle)*dist,angle:0,angVel:0,speed:sp,hp:cfg.hp,maxHp:cfg.hp,type,scale:cfg.scale*CFG.enemySizeMul,color:cfg.color,score:cfg.score,aiTimer:Math.random()*2,behavior:Math.random()<0.4?'aggressive':'patrol',patrolAngle:Math.random()*Math.PI*2})}
+function updateEnemies(dt,t){const maxE=CFG.maxEnemies+Math.floor(jet.kills/5);const spawnRate=Math.max(0.6,2.5-jet.kills*0.04);enemySpawnTimer+=dt;if(enemySpawnTimer>spawnRate&&enemies.length<maxE){spawnEnemy();enemySpawnTimer=0}for(let i=enemies.length-1;i>=0;i--){const e=enemies[i];const dx=jet.x-e.x,dy=jet.y-e.y;const distP=Math.sqrt(dx*dx+dy*dy);const angP=Math.atan2(dy,dx);e.aiTimer-=dt;if(e.aiTimer<=0){e.aiTimer=1+Math.random()*2;if(e.behavior==='patrol')e.patrolAngle=angP+(Math.random()-.5)*1.5}let ta;if(e.behavior==='aggressive')ta=angP;else ta=e.patrolAngle*.6+angP*.4;let ad=ta-e.angle;while(ad>Math.PI)ad-=Math.PI*2;while(ad<-Math.PI)ad+=Math.PI*2;e.angVel+=ad*3*dt;e.angVel*=(1-4*dt);e.angle+=e.angVel*dt;e.x+=Math.cos(e.angle)*e.speed*dt;e.y+=Math.sin(e.angle)*e.speed*dt;const d2=(e.x-jet.x)**2+(e.y-jet.y)**2;if(d2>(Math.max(W,H)*1.5)**2){enemies.splice(i,1);continue}if(distP<30&&jet.invuln<=0){jet.hp--;jet.invuln=1.5;spawnExplosion(e.x,e.y,0.6);enemies.splice(i,1)}}}
+function drawEnemy(c,e,t){const sx=e.x-cam.x+W/2,sy=e.y-cam.y+H/2;if(sx<-100||sx>W+100||sy<-100||sy>H+100)return;c.save();c.translate(sx,sy);c.rotate(e.angle);c.scale(e.scale,e.scale);c.fillStyle=e.color;c.beginPath();c.moveTo(50,0);c.lineTo(-30,-25);c.lineTo(-20,-8);c.lineTo(-35,-6);c.lineTo(-35,6);c.lineTo(-20,8);c.lineTo(-30,25);c.closePath();c.fill();c.strokeStyle='rgba(255,120,80,0.3)';c.lineWidth=1;c.beginPath();c.moveTo(50,0);c.lineTo(-30,-25);c.stroke();c.fillStyle='rgba(255,100,40,0.6)';c.beginPath();c.arc(-35,0,4,0,6.28);c.fill();const flick=0.7+0.3*Math.sin(t*30+e.x);c.fillStyle=`rgba(255,140,40,${0.4*flick})`;c.beginPath();c.moveTo(-35,-3);c.lineTo(-55-Math.random()*10,0);c.lineTo(-35,3);c.closePath();c.fill();if(e.hp<e.maxHp){c.rotate(-e.angle);const bw=30,bh=3;c.fillStyle='rgba(0,0,0,0.5)';c.fillRect(-bw/2,-40/e.scale,bw,bh);c.fillStyle='rgba(255,80,40,0.8)';c.fillRect(-bw/2,-40/e.scale,bw*(e.hp/e.maxHp),bh)}c.restore()}
+
+// ─── Bullets (uses CFG.bulletSpeed) ────────────────────────────
+const bullets=[];
+function fireBullet(){const c=Math.cos(jet.angle),s=Math.sin(jet.angle);const nX=168*JET_SCALE;const sp=(Math.random()-.5)*0.03;const bA=jet.angle+sp;bullets.push({x:jet.x+c*nX,y:jet.y+s*nX,vx:Math.cos(bA)*CFG.bulletSpeed,vy:Math.sin(bA)*CFG.bulletSpeed,age:0,life:1.8,damage:1})}
+function updateBullets(dt){jet.fireCooldown-=dt;if(jet.fireCooldown<=0){fireBullet();setTimeout(()=>fireBullet(),30);jet.fireCooldown=jet.fireRate}for(let i=bullets.length-1;i>=0;i--){const b=bullets[i];b.x+=b.vx*dt;b.y+=b.vy*dt;b.age+=dt;if(b.age>b.life){bullets.splice(i,1);continue}for(let j=enemies.length-1;j>=0;j--){const e=enemies[j];const dx=b.x-e.x,dy=b.y-e.y;const hitR=25*e.scale/0.3;if(dx*dx+dy*dy<hitR*hitR){e.hp-=b.damage;bullets.splice(i,1);if(e.hp<=0){const mul=Math.max(1,jet.combo);jet.score+=e.score*mul;jet.kills++;jet.combo++;jet.comboTimer=2.5;spawnExplosion(e.x,e.y,e.type==='bomber'?1.5:1);enemies.splice(j,1)}else{spawnHitSpark(b.x,b.y)}break}}}}
+function drawBullets(c,t){c.save();for(const b of bullets){const sx=b.x-cam.x+W/2,sy=b.y-cam.y+H/2;if(sx<-20||sx>W+20||sy<-20||sy>H+20)continue;const angle=Math.atan2(b.vy,b.vx);const g=c.createLinearGradient(sx,sy,sx-Math.cos(angle)*12,sy-Math.sin(angle)*12);g.addColorStop(0,'rgba(255,240,180,0.9)');g.addColorStop(1,'rgba(255,160,60,0)');c.strokeStyle=g;c.lineWidth=2;c.beginPath();c.moveTo(sx,sy);c.lineTo(sx-Math.cos(angle)*12,sy-Math.sin(angle)*12);c.stroke();c.fillStyle='rgba(255,255,220,0.95)';c.beginPath();c.arc(sx,sy,2,0,6.28);c.fill();c.fillStyle='rgba(255,200,100,0.2)';c.beginPath();c.arc(sx,sy,6,0,6.28);c.fill()}c.restore()}
+
+// ─── Hit Sparks ────────────────────────────────────────────────
+const hitSparks=[];
+function spawnHitSpark(x,y){for(let i=0;i<5;i++){const a=Math.random()*6.28,sp=80+Math.random()*120;hitSparks.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,age:0,life:0.3})}}
+function updateAndDrawHitSparks(dt){sCtx.save();for(let i=hitSparks.length-1;i>=0;i--){const s=hitSparks[i];s.age+=dt;if(s.age>s.life){hitSparks.splice(i,1);continue}s.x+=s.vx*dt;s.y+=s.vy*dt;const sx=s.x-cam.x+W/2,sy=s.y-cam.y+H/2;const al=1-s.age/s.life;sCtx.fillStyle=`rgba(255,240,180,${al})`;sCtx.beginPath();sCtx.arc(sx,sy,2*al,0,6.28);sCtx.fill()}sCtx.restore()}
+
+// ─── Explosions ────────────────────────────────────────────────
+const explosions=[];
+function spawnExplosion(x,y,scale){const count=Math.floor(35*scale);for(let i=0;i<count;i++){const a=Math.random()*6.28,sp=40+Math.random()*200*scale;explosions.push({x:x+(Math.random()-.5)*10,y:y+(Math.random()-.5)*10,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,age:0,life:0.6+Math.random()*0.8*scale,size:2+Math.random()*5*scale,r:255,g:180+Math.random()*75,b:40+Math.random()*60})}for(let i=0;i<8*scale;i++){const a=Math.random()*6.28,sp=30+Math.random()*100;explosions.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,age:0,life:0.8+Math.random()*0.6,size:1+Math.random()*2,r:120,g:120,b:130})}explosions.push({x,y,vx:0,vy:0,age:0,life:0.5,size:5,ring:true,maxR:80*scale,r:255,g:200,b:100})}
+function updateAndDrawExplosions(dt){sCtx.save();sCtx.globalCompositeOperation='lighter';for(let i=explosions.length-1;i>=0;i--){const p=explosions[i];p.age+=dt;if(p.age>p.life){explosions.splice(i,1);continue}p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=(1-2*dt);p.vy*=(1-2*dt);const sx=p.x-cam.x+W/2,sy=p.y-cam.y+H/2;if(sx<-100||sx>W+100||sy<-100||sy>H+100){explosions.splice(i,1);continue}const pr=p.age/p.life;if(p.ring){const radius=p.maxR*pr,al=(1-pr)*0.4;sCtx.strokeStyle=`rgba(${p.r},${p.g},${p.b},${al})`;sCtx.lineWidth=3*(1-pr);sCtx.beginPath();sCtx.arc(sx,sy,radius,0,6.28);sCtx.stroke()}else{const al=(1-pr)*0.8,sz=p.size*(1-pr*0.5);sCtx.fillStyle=`rgba(${p.r},${p.g},${p.b},${al})`;sCtx.beginPath();sCtx.arc(sx,sy,sz,0,6.28);sCtx.fill();if(pr<0.3){sCtx.fillStyle=`rgba(255,255,220,${(1-pr/0.3)*0.3})`;sCtx.beginPath();sCtx.arc(sx,sy,sz*2,0,6.28);sCtx.fill()}}}sCtx.restore()}
+
+// ─── Crosshair ─────────────────────────────────────────────────
+function drawCrosshair(c,t){const dist=120;const cx=W/2+Math.cos(jet.angle)*dist,cy=H/2+Math.sin(jet.angle)*dist;const pulse=0.6+0.2*Math.sin(t*4),r=14;c.save();c.strokeStyle=`rgba(255,200,120,${0.25*pulse})`;c.lineWidth=1;c.beginPath();c.arc(cx,cy,r,0,6.28);c.stroke();for(let i=0;i<4;i++){const a=i*Math.PI/2;c.beginPath();c.moveTo(cx+Math.cos(a)*(r+2),cy+Math.sin(a)*(r+2));c.lineTo(cx+Math.cos(a)*(r+2+5),cy+Math.sin(a)*(r+2+5));c.stroke()}c.fillStyle=`rgba(255,200,120,${0.4*pulse})`;c.beginPath();c.arc(cx,cy,1.5,0,6.28);c.fill();c.restore()}
+
+// ─── Enemy Indicators ──────────────────────────────────────────
+function drawEnemyIndicators(c){for(const e of enemies){const sx=e.x-cam.x+W/2,sy=e.y-cam.y+H/2;if(sx>20&&sx<W-20&&sy>20&&sy<H-20)continue;const angle=Math.atan2(sy-H/2,sx-W/2);const eX=W/2+Math.cos(angle)*(W/2-30),eY=H/2+Math.sin(angle)*(H/2-30);const cx=Math.max(20,Math.min(W-20,eX)),cy=Math.max(20,Math.min(H-20,eY));c.save();c.translate(cx,cy);c.rotate(angle);c.fillStyle='rgba(255,80,60,0.4)';c.beginPath();c.moveTo(8,0);c.lineTo(-4,-5);c.lineTo(-4,5);c.closePath();c.fill();c.restore()}}
+
+// ─── Heat Distortion ───────────────────────────────────────────
+function applyHeatDistortion(t){const rx=Math.round(W/2-155),ry=Math.round(H/2-50);const rw=Math.min(120,W-Math.max(0,rx)),rh=Math.min(100,H-Math.max(0,ry));if(rw<=0||rh<=0||rx<0||ry<0)return;dCtx.clearRect(0,0,rw,rh);dCtx.drawImage(sceneCvs,rx,ry,rw,rh,0,0,rw,rh);sCtx.save();const di=.6+jet.boost*.8;for(let row=0;row<rh;row++){const wy=ry+row,dc=Math.abs(row-rh/2)/(rh/2),inten=Math.max(0,1-dc*dc)*di;const disp=Math.sin(wy*.12+t*11)*3.5*inten+Math.sin(wy*.27+t*17)*2*inten+noise2D(wy*.06,t*2.5)*2.5*inten;sCtx.drawImage(distCvs,0,row,rw,1,rx+disp,wy,rw,1)}sCtx.restore()}
+
+// ─── Camera Shake ──────────────────────────────────────────────
+function getShake(t){const amp=0.6+jet.boost*1.2+(jet.speed/(CFG.maxSpeed+200))*0.8;return{x:(Math.sin(t*43.7)*1.2+Math.sin(t*127.3)*.5+(noise2D(t*8,0)-.5)*1.5)*amp,y:(Math.sin(t*37.1)*1+Math.sin(t*97.9)*.4+(noise2D(0,t*8)-.5)*1.2)*amp}}
+
+// ─── Speed Streaks ─────────────────────────────────────────────
+function drawSpeedStreaks(c,t){const si=Math.min(1,(jet.speed-150)/300+jet.boost*0.5);c.save();c.globalAlpha=0.06*si;for(let i=0;i<14;i++){const y=noise2D(i*7.3,t*.2)*H,x=noise2D(i*5.7,t*.15)*W,len=(200+noise2D(i*3.1,t*.3)*300)*si;c.strokeStyle=`rgba(180,200,220,${.3+noise2D(i,t)*.4})`;c.lineWidth=.5+noise2D(i*2,t*.5);c.beginPath();c.moveTo(x,y);c.lineTo(x-Math.cos(jet.angle)*len,y-Math.sin(jet.angle)*len);c.stroke()}c.restore()}
+
+// ─── Vignette ──────────────────────────────────────────────────
+function drawVignette(){const cx=W/2,cy=H/2,maxR=Math.sqrt(cx*cx+cy*cy);const g=ctx.createRadialGradient(cx,cy,maxR*.35,cx,cy,maxR);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(.6,'rgba(0,0,0,0.15)');g.addColorStop(1,'rgba(0,0,0,0.65)');ctx.fillStyle=g;ctx.fillRect(0,0,W,H)}
+
+// ─── HUD ───────────────────────────────────────────────────────
+const hudTop=document.getElementById('hud-top');
+const comboEl=document.getElementById('combo');
+const speedFill=document.getElementById('speed-fill');
+const enemyCountEl=document.getElementById('enemy-count');
+function updateHUD(){hudTop.textContent=`SCORE: ${jet.score.toLocaleString()}`;const pct=Math.round((jet.speed/(CFG.maxSpeed+200))*100);speedFill.style.width=pct+'%';speedFill.style.background=jet.boost>0.5?'linear-gradient(90deg,#ff4010,#ffcc40,#fff)':'linear-gradient(90deg,#ff8020,#ffcc40)';enemyCountEl.textContent=enemies.length>0?`HOSTILES: ${enemies.length}`:'';if(jet.combo>1){comboEl.textContent=`×${jet.combo} COMBO`;comboEl.classList.add('show')}else{comboEl.classList.remove('show')}}
+
+// ─── Main Loop ─────────────────────────────────────────────────
+let lastTime=0,elapsed=0;
+function frame(timestamp){if(!gameStarted)return;const dt=Math.min((timestamp-lastTime)/1000,0.05);lastTime=timestamp;elapsed+=dt;const t=elapsed;updateJet(dt);updateCamera(dt);updateBullets(dt);updateEnemies(dt,t);const shake=getShake(t);
+sCtx.fillStyle='#000';sCtx.fillRect(0,0,W,H);drawStars(dt,t);drawSpeedStreaks(sCtx,t);updateAndDrawContrails(dt,t);drawBullets(sCtx,t);for(const e of enemies)drawEnemy(sCtx,e,t);updateAndDrawHitSparks(dt);
+sCtx.save();sCtx.translate(W/2,H/2);drawJet(sCtx);drawAmbientLighting(sCtx);drawAfterburner(sCtx,t);sCtx.restore();updateAndDrawExplosions(dt);applyHeatDistortion(t);
+ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);ctx.save();ctx.translate(shake.x,shake.y);ctx.drawImage(sceneCvs,0,0);ctx.restore();updateBokeh(dt);drawBokeh();drawVignette();
+ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.006+jet.boost*0.008;ctx.drawImage(canvas,-2,0);ctx.restore();drawCrosshair(ctx,t);drawEnemyIndicators(ctx);updateHUD();requestAnimationFrame(frame)}
+
+// ─── Init (don't start game loop until LAUNCH) ─────────────────
+resize();initBokeh();
+
+</script>
+</body>
+</html>
