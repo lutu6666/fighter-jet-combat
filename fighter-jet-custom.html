@@ -16,14 +16,16 @@ canvas{display:block;position:fixed;top:0;left:0}
 @media screen and (orientation:portrait) and (max-width:900px){
   body{transform:rotate(90deg) translateY(-100%);transform-origin:top left;
     width:100vh;height:100vw;overflow:hidden}
-  #settings-box{width:340px;max-width:88vw;max-height:85vh;padding:16px 18px 14px}
-  #settings-box h1{font-size:16px;margin-bottom:4px}
-  #settings-box .sub{font-size:9px;margin-bottom:12px}
-  .slider-group{margin-bottom:8px}
-  .slider-group label{font-size:10px;margin-bottom:3px}
+  #settings-box{width:auto;max-width:90vw;max-height:92vh;padding:14px 16px 12px;
+    display:flex;flex-direction:column;gap:0}
+  #settings-box h1{font-size:15px;margin-bottom:2px}
+  #settings-box .sub{font-size:9px;margin-bottom:8px}
+  .slider-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px}
+  .slider-group{margin-bottom:4px}
+  .slider-group label{font-size:10px;margin-bottom:2px}
   .slider-group input[type=range]{height:3px}
-  .divider{margin:10px 0}
-  #btn-start{padding:10px;margin-top:12px;font-size:13px}
+  .divider{margin:6px 0}
+  #btn-start{padding:10px;margin-top:8px;font-size:13px}
 }
 
 /* ── Boost Button (touch devices) ── */
@@ -106,6 +108,7 @@ canvas{display:block;position:fixed;top:0;left:0}
     <h1>COMBAT CONFIG</h1>
     <div class="sub">ADJUST PARAMETERS BEFORE LAUNCH</div>
 
+    <div class="slider-grid">
     <div class="slider-group">
       <label>飞行速度 MAX SPEED <span class="val" id="v-speed" contenteditable="true">550</span></label>
       <input type="range" id="s-speed" min="200" max="1200" value="550" step="10">
@@ -129,6 +132,7 @@ canvas{display:block;position:fixed;top:0;left:0}
     <div class="slider-group">
       <label>灵敏度 SENSITIVITY <span class="val" id="v-sense" contenteditable="true">5.5</span></label>
       <input type="range" id="s-sense" min="1.0" max="15.0" value="5.5" step="0.5">
+    </div>
     </div>
 
     <div class="divider"></div>
