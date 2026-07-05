@@ -12,21 +12,20 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;cursor:crosshai
 main{width:100%;height:100%}
 canvas{display:block;position:fixed;top:0;left:0}
 
-/* ── Force Landscape on Mobile (rotate content) ── */
-@media screen and (orientation:portrait) and (max-width:900px){
-  body{transform:rotate(90deg) translateY(-100%);transform-origin:top left;
-    width:100vh;height:100vw;overflow:hidden}
-  #settings-box{width:auto;max-width:90vw;max-height:92vh;padding:14px 16px 12px;
-    display:flex;flex-direction:column;gap:0}
-  #settings-box h1{font-size:15px;margin-bottom:2px}
-  #settings-box .sub{font-size:9px;margin-bottom:8px}
-  .slider-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px}
-  .slider-group{margin-bottom:4px}
-  .slider-group label{font-size:10px;margin-bottom:2px}
-  .slider-group input[type=range]{height:3px}
-  .divider{margin:6px 0}
-  #btn-start{padding:10px;margin-top:8px;font-size:13px}
-}
+/* ── Portrait rotation (applied via JS) ── */
+body.portrait-rotated{
+  transform:rotate(90deg) translateY(-100%);transform-origin:top left;
+  width:100vh;height:100vw;overflow:hidden;position:fixed;top:0;left:0}
+body.portrait-rotated #settings-box{width:auto;max-width:90vw;max-height:92vh;padding:14px 16px 12px;
+  display:flex;flex-direction:column;gap:0}
+body.portrait-rotated #settings-box h1{font-size:15px;margin-bottom:2px}
+body.portrait-rotated #settings-box .sub{font-size:9px;margin-bottom:8px}
+body.portrait-rotated .slider-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px}
+body.portrait-rotated .slider-group{margin-bottom:4px}
+body.portrait-rotated .slider-group label{font-size:10px;margin-bottom:2px}
+body.portrait-rotated .slider-group input[type=range]{height:3px}
+body.portrait-rotated .divider{margin:6px 0}
+body.portrait-rotated #btn-start{padding:10px;margin-top:8px;font-size:13px}
 
 /* ── Boost Button (touch devices) ── */
 #btn-boost{display:none;position:fixed;bottom:28px;left:28px;z-index:50;
@@ -222,6 +221,21 @@ boostBtn.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropaga
 boostBtn.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); jet.boostTarget = 0; boostBtn.classList.remove('active'); }, { passive: false });
 boostBtn.addEventListener('touchcancel', e => { jet.boostTarget = 0; boostBtn.classList.remove('active'); });
 
+// ─── Orientation Detection (JS-driven, more reliable than CSS media query) ──
+function isPortraitMobile() {
+  return window.innerWidth < window.innerHeight && window.innerWidth <= 900;
+}
+function applyOrientation() {
+  if (isPortraitMobile()) {
+    document.body.classList.add('portrait-rotated');
+  } else {
+    document.body.classList.remove('portrait-rotated');
+  }
+}
+applyOrientation();
+window.addEventListener('resize', applyOrientation);
+window.addEventListener('orientationchange', () => setTimeout(applyOrientation, 100));
+
 // ─── Canvas Setup ──────────────────────────────────────────────
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d', { alpha: false });
@@ -232,7 +246,7 @@ const distCvs = document.createElement('canvas');
 const dCtx = distCvs.getContext('2d');
 
 function resize() {
-  const isPortrait = window.matchMedia('(orientation:portrait) and (max-width:900px)').matches;
+  const isPortrait = isPortraitMobile();
   W = canvas.width = sceneCvs.width = distCvs.width = isPortrait ? window.innerHeight : window.innerWidth;
   H = canvas.height = sceneCvs.height = distCvs.height = isPortrait ? window.innerWidth : window.innerHeight;
   initStars();
@@ -254,8 +268,7 @@ const DEAD_ZONE = 25;
 function updatePtr(px, py) {
   ptr.active = true;
   // Fix coordinates when CSS rotation is active (portrait mode)
-  const isPortraitRotated = window.matchMedia('(orientation:portrait) and (max-width:900px)').matches;
-  if (isPortraitRotated) {
+  if (isPortraitMobile()) {
     const origX = px, origY = py;
     px = origY;
     py = window.innerWidth - origX;
