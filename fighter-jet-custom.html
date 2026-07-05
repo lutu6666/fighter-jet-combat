@@ -12,17 +12,11 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;cursor:crosshai
 main{width:100%;height:100%}
 canvas{display:block;position:fixed;top:0;left:0}
 
-/* ── Force Landscape on Mobile ── */
+/* ── Force Landscape on Mobile (rotate content) ── */
 @media screen and (orientation:portrait) and (max-width:900px){
-  #landscape-prompt{display:flex}
-  #settings-overlay,#hud-top,#hud-bottom,#speed-bar,#combo,#enemy-count,#btn-boost,canvas,main{display:none!important}
+  body{transform:rotate(90deg) translateY(-100%);transform-origin:top left;
+    width:100vh;height:100vw;overflow:hidden}
 }
-#landscape-prompt{display:none;position:fixed;inset:0;z-index:999;
-  align-items:center;justify-content:center;flex-direction:column;gap:16px;
-  background:#000;color:rgba(255,200,120,0.7);
-  font:600 18px/1.4 'Courier New',monospace;text-align:center;letter-spacing:2px}
-#landscape-prompt .rotate-icon{font-size:48px;animation:rotHint 2s ease-in-out infinite}
-@keyframes rotHint{0%,100%{transform:rotate(0)}50%{transform:rotate(90deg)}}
 
 /* ── Boost Button (touch devices) ── */
 #btn-boost{display:none;position:fixed;bottom:28px;left:28px;z-index:50;
@@ -94,13 +88,6 @@ canvas{display:block;position:fixed;top:0;left:0}
 <main data-component="fighter-jet-combat">
 <canvas id="c" data-component="canvas-layer"></canvas>
 </main>
-
-<!-- Landscape prompt for mobile portrait -->
-<div id="landscape-prompt">
-  <div class="rotate-icon">📱</div>
-  <div>请横屏游玩</div>
-  <div style="font-size:12px;color:rgba(140,160,180,0.4)">ROTATE YOUR DEVICE</div>
-</div>
 
 <!-- Boost button for touch devices -->
 <div id="btn-boost">BOOST</div>
@@ -233,8 +220,9 @@ const distCvs = document.createElement('canvas');
 const dCtx = distCvs.getContext('2d');
 
 function resize() {
-  W = canvas.width = sceneCvs.width = distCvs.width = window.innerWidth;
-  H = canvas.height = sceneCvs.height = distCvs.height = window.innerHeight;
+  const isPortrait = window.matchMedia('(orientation:portrait) and (max-width:900px)').matches;
+  W = canvas.width = sceneCvs.width = distCvs.width = isPortrait ? window.innerHeight : window.innerWidth;
+  H = canvas.height = sceneCvs.height = distCvs.height = isPortrait ? window.innerWidth : window.innerHeight;
   initStars();
 }
 window.addEventListener('resize', resize);
@@ -253,6 +241,13 @@ const DEAD_ZONE = 25;
 
 function updatePtr(px, py) {
   ptr.active = true;
+  // Fix coordinates when CSS rotation is active (portrait mode)
+  const isPortraitRotated = window.matchMedia('(orientation:portrait) and (max-width:900px)').matches;
+  if (isPortraitRotated) {
+    const origX = px, origY = py;
+    px = origY;
+    py = window.innerWidth - origX;
+  }
   ptr.x = px; ptr.y = py;
   const dx = px - W / 2, dy = py - H / 2;
   ptr.dist = Math.sqrt(dx * dx + dy * dy);
