@@ -27,31 +27,26 @@ body.portrait-rotated .slider-group input[type=range]{height:3px}
 body.portrait-rotated .divider{margin:6px 0}
 body.portrait-rotated #btn-start{padding:10px;margin-top:8px;font-size:13px}
 
-/* ── Boost Button (touch devices) ── */
-#btn-boost{display:none;position:fixed;bottom:28px;left:28px;z-index:50;
-  width:72px;height:72px;border-radius:50%;border:2px solid rgba(255,160,40,0.35);
+/* ── Touch Controls Overlay (outside rotated body) ── */
+#touch-controls{display:none;position:fixed;z-index:9999;pointer-events:none}
+#touch-joystick{position:absolute;width:140px;height:140px;border-radius:50%;
+  border:2px solid rgba(255,255,255,0.12);
+  background:radial-gradient(circle,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+  pointer-events:auto;touch-action:none}
+#touch-knob{position:absolute;width:50px;height:50px;border-radius:50%;
+  top:50%;left:50%;transform:translate(-50%,-50%);
+  background:radial-gradient(circle,rgba(255,200,120,0.35),rgba(255,140,40,0.15));
+  border:2px solid rgba(255,200,120,0.4);
+  box-shadow:0 0 10px rgba(255,140,40,0.2);pointer-events:none}
+#touch-boost{position:absolute;width:68px;height:68px;border-radius:50%;
+  border:2px solid rgba(255,160,40,0.35);
   background:radial-gradient(circle,rgba(255,140,40,0.2),rgba(255,80,20,0.08));
   color:rgba(255,200,120,0.7);font:700 11px/1 'Courier New',monospace;letter-spacing:1px;
-  text-align:center;line-height:72px;cursor:pointer;
-  box-shadow:0 0 20px rgba(255,120,30,0.1);transition:all .15s;-webkit-tap-highlight-color:transparent}
-#btn-boost.active{background:radial-gradient(circle,rgba(255,160,40,0.5),rgba(255,80,20,0.25));
-  border-color:rgba(255,200,80,0.7);box-shadow:0 0 30px rgba(255,140,40,0.4);
-  color:rgba(255,240,180,0.95);transform:scale(0.95)}
-
-/* ── Virtual Joystick ── */
-#joystick{display:none;position:fixed;top:28px;right:28px;z-index:60;
-  width:160px;height:160px;border-radius:50%;
-  border:2px solid rgba(255,255,255,0.08);
-  background:radial-gradient(circle,rgba(255,255,255,0.03),rgba(255,255,255,0.01));
-  -webkit-tap-highlight-color:transparent;touch-action:none}
-#joystick-knob{position:absolute;width:56px;height:56px;border-radius:50%;
-  top:50%;left:50%;transform:translate(-50%,-50%);
-  background:radial-gradient(circle,rgba(255,200,120,0.25),rgba(255,160,60,0.1));
-  border:2px solid rgba(255,200,120,0.3);
-  box-shadow:0 0 12px rgba(255,160,40,0.15);
-  transition:box-shadow .15s;pointer-events:none}
-#joystick.active #joystick-knob{box-shadow:0 0 20px rgba(255,160,40,0.4);
-  border-color:rgba(255,200,120,0.6)}
+  text-align:center;line-height:68px;cursor:pointer;
+  pointer-events:auto;touch-action:none;-webkit-tap-highlight-color:transparent}
+#touch-boost.active{background:radial-gradient(circle,rgba(255,160,40,0.5),rgba(255,80,20,0.25));
+  border-color:rgba(255,200,80,0.7);box-shadow:0 0 25px rgba(255,140,40,0.4);
+  color:rgba(255,240,180,0.95)}
 
 /* ── Settings Panel ── */
 #settings-overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;
@@ -113,11 +108,7 @@ body.portrait-rotated #btn-start{padding:10px;margin-top:8px;font-size:13px}
 <canvas id="c" data-component="canvas-layer"></canvas>
 </main>
 
-<!-- Boost button for touch devices -->
-<div id="btn-boost">BOOST</div>
-
-<!-- Virtual Joystick for touch devices -->
-<div id="joystick"><div id="joystick-knob"></div></div>
+<!-- Touch Controls Overlay (appended to <html> by JS, outside rotated body) -->
 
 <!-- Settings Overlay -->
 <div id="settings-overlay">
@@ -219,22 +210,10 @@ document.getElementById('btn-start').addEventListener('click', () => {
   document.getElementById('speed-bar').style.display = '';
   document.getElementById('hud-bottom').style.display = '';
 
-  // Show boost button and joystick on touch devices
+  // Show touch controls on touch devices
   const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
   if (isTouch) {
-    const btn = document.getElementById('btn-boost');
-    btn.style.display = 'block';
-    if (isPortraitMobile()) {
-      btn.style.position = 'fixed';
-      btn.style.bottom = '28px';
-      btn.style.left = '28px';
-      btn.style.top = 'auto';
-      btn.style.right = 'auto';
-    }
-    btn.style.zIndex = '50';
-    // Show joystick
-    document.getElementById('joystick').style.display = 'block';
-    // Try to lock landscape orientation
+    initTouchControls();
     if (screen.orientation && screen.orientation.lock) {
       screen.orientation.lock('landscape').catch(() => {});
     }
@@ -244,58 +223,106 @@ document.getElementById('btn-start').addEventListener('click', () => {
   requestAnimationFrame(frame);
 });
 
-// ─── Boost Button (touch) ──────────────────────────────────────
-const boostBtn = document.getElementById('btn-boost');
-boostBtn.addEventListener('touchstart', e => { e.preventDefault(); jet.boostTarget = 1; boostBtn.classList.add('active'); }, { passive: false });
-boostBtn.addEventListener('touchend', e => { e.preventDefault(); jet.boostTarget = 0; boostBtn.classList.remove('active'); }, { passive: false });
-boostBtn.addEventListener('touchcancel', e => { jet.boostTarget = 0; boostBtn.classList.remove('active'); });
+// ─── Touch Controls (Honor of Kings style joystick) ───────────
+function initTouchControls() {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const isPortrait = isPortraitMobile();
 
-// ─── Virtual Joystick (touch) ─────────────────────────────────
-const joystick = document.getElementById('joystick');
-const joystickKnob = document.getElementById('joystick-knob');
-const JOY_RADIUS = 70;
-const JOY_INNER = 45; // inner zone boundary
-let joyActive = false;
+  // Create overlay on <html> (outside rotated <body>)
+  const overlay = document.createElement('div');
+  overlay.id = 'touch-controls';
+  overlay.style.display = 'block';
 
-function handleJoystickTouch(e) {
-  if (!e.touches.length) return;
-  const rect = joystick.getBoundingClientRect();
-  const cx = rect.left + rect.width / 2;
-  const cy = rect.top + rect.height / 2;
-  const touch = e.touches[0];
-  let dx = touch.clientX - cx;
-  let dy = touch.clientY - cy;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  const clampedDist = Math.min(dist, JOY_RADIUS);
-  const angle = Math.atan2(dy, dx);
+  // Use actual screen dimensions for positioning
+  const screenW = isPortrait ? vh : vw;
+  const screenH = isPortrait ? vw : vh;
 
-  // Visual knob offset
-  const knobX = Math.cos(angle) * clampedDist;
-  const knobY = Math.sin(angle) * clampedDist;
-  joystickKnob.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
+  // Joystick: bottom-left corner
+  const joy = document.createElement('div');
+  joy.id = 'touch-joystick';
+  joy.style.left = '24px';
+  joy.style.bottom = '24px';
+  const knob = document.createElement('div');
+  knob.id = 'touch-knob';
+  joy.appendChild(knob);
 
-  if (dist > 8) {
-    // Body (dx, dy) → Visual (dy, -dx) after 90° CW rotation
-    // Push right in body (dx>0) → visual down
-    // Push down in body (dy>0) → visual right
-    const visualAngle = Math.atan2(-dx, dy);
-    ptr.active = true;
-    ptr.x = W / 2 + Math.cos(visualAngle) * clampedDist * 4;
-    ptr.y = H / 2 + Math.sin(visualAngle) * clampedDist * 4;
-    ptr.angle = visualAngle;
-    ptr.dist = clampedDist * 4;
+  // Boost button: bottom-right corner
+  const boost = document.createElement('div');
+  boost.id = 'touch-boost';
+  boost.textContent = 'BOOST';
+  boost.style.right = '24px';
+  boost.style.bottom = '28px';
 
-    // Speed from distance: closer to center = slow, edge = full speed
-    const speedFactor = clampedDist / JOY_RADIUS;
-    const targetThrottle = 0.1 + speedFactor * 0.9;
-    jet.throttle += (targetThrottle - jet.throttle) * 0.3;
+  overlay.appendChild(joy);
+  overlay.appendChild(boost);
+  document.documentElement.appendChild(overlay);
+
+  const JOY_R = 60; // max knob travel radius
+
+  // ── Joystick touch handling (immediate, no lag) ──
+  joy.addEventListener('touchstart', e => {
+    e.preventDefault();
+    handleJoy(e.touches[0]);
+  }, { passive: false });
+  joy.addEventListener('touchmove', e => {
+    e.preventDefault();
+    handleJoy(e.touches[0]);
+  }, { passive: false });
+  joy.addEventListener('touchend', e => {
+    e.preventDefault();
+    resetJoy();
+  }, { passive: false });
+  joy.addEventListener('touchcancel', () => resetJoy());
+
+  function handleJoy(touch) {
+    const rect = joy.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    let dx = touch.clientX - cx;
+    let dy = touch.clientY - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const clamp = Math.min(dist, JOY_R);
+    const ang = Math.atan2(dy, dx);
+
+    // Move knob visually
+    knob.style.transform = `translate(calc(-50% + ${Math.cos(ang)*clamp}px), calc(-50% + ${Math.sin(ang)*clamp}px))`;
+
+    if (dist > 6) {
+      // Direct angle steering - jet turns IMMEDIATELY toward joystick direction
+      ptr.active = true;
+      ptr.angle = ang;
+      ptr.dist = clamp * 5;
+
+      // Speed: center=slow, edge=full throttle
+      const factor = clamp / JOY_R;
+      jet.throttle = 0.1 + factor * 0.9;
+    } else {
+      ptr.active = false;
+    }
   }
-}
 
-joystick.addEventListener('touchstart', e => { e.preventDefault(); joyActive = true; joystick.classList.add('active'); handleJoystickTouch(e); }, { passive: false });
-joystick.addEventListener('touchmove', e => { e.preventDefault(); if (joyActive) handleJoystickTouch(e); }, { passive: false });
-joystick.addEventListener('touchend', e => { e.preventDefault(); joyActive = false; joystick.classList.remove('active'); joystickKnob.style.transform = 'translate(-50%,-50%)'; ptr.active = false; }, { passive: false });
-joystick.addEventListener('touchcancel', () => { joyActive = false; joystick.classList.remove('active'); joystickKnob.style.transform = 'translate(-50%,-50%)'; ptr.active = false; });
+  function resetJoy() {
+    ptr.active = false;
+    knob.style.transform = 'translate(-50%,-50%)';
+  }
+
+  // ── Boost button touch handling ──
+  boost.addEventListener('touchstart', e => {
+    e.preventDefault();
+    jet.boostTarget = 1;
+    boost.classList.add('active');
+  }, { passive: false });
+  boost.addEventListener('touchend', e => {
+    e.preventDefault();
+    jet.boostTarget = 0;
+    boost.classList.remove('active');
+  }, { passive: false });
+  boost.addEventListener('touchcancel', () => {
+    jet.boostTarget = 0;
+    boost.classList.remove('active');
+  });
+}
 
 // ─── Orientation Detection (JS-driven, more reliable than CSS media query) ──
 function isPortraitMobile() {
@@ -378,17 +405,20 @@ function updateJet(dt) {
   const throttleRate = CFG.accel;
   const usingKeyboard = keys['ArrowLeft']||keys['ArrowRight']||keys['KeyA']||keys['KeyD'];
 
-  // ── Pointer steering ──
-  if (ptr.active && ptr.dist > DEAD_ZONE && !usingKeyboard) {
+  // ── Pointer/joystick steering (immediate, Honor of Kings style) ──
+  if (ptr.active && ptr.dist > 10 && !usingKeyboard) {
     let angleDiff = ptr.angle - jet.angle;
     while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-    jet.angVel += angleDiff * Math.max(turnRate, 8) * dt;
+    // Direct angle interpolation - very responsive
+    const responsiveness = Math.min(1, 12 * dt);
+    jet.angle += angleDiff * responsiveness;
+    jet.angVel = 0; // override velocity-based steering
 
-    // Distance from center → throttle (farther = faster)
-    const maxR = Math.min(W, H) * 0.4;
-    const targetThrottle = Math.min(1, Math.max(0.15, ptr.dist / maxR));
-    jet.throttle += (targetThrottle - jet.throttle) * 4 * dt;
+    // Throttle from joystick distance
+    const maxR = 300;
+    const targetThrottle = Math.min(1, Math.max(0.1, ptr.dist / maxR));
+    jet.throttle += (targetThrottle - jet.throttle) * 6 * dt;
   }
 
   // ── Keyboard steering (unchanged) ──
