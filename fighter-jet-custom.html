@@ -39,7 +39,7 @@ body.portrait-rotated #btn-start{padding:10px;margin-top:8px;font-size:13px}
   color:rgba(255,240,180,0.95);transform:scale(0.95)}
 
 /* ── Virtual Joystick ── */
-#joystick{display:none;position:fixed;bottom:28px;left:28px;z-index:60;
+#joystick{display:none;position:fixed;top:28px;right:28px;z-index:60;
   width:160px;height:160px;border-radius:50%;
   border:2px solid rgba(255,255,255,0.08);
   background:radial-gradient(circle,rgba(255,255,255,0.03),rgba(255,255,255,0.01));
@@ -275,20 +275,20 @@ function handleJoystickTouch(e) {
   joystickKnob.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
 
   if (dist > 8) {
-    // Map to screen-space pointer (body is rotated 90° CW)
-    // Body (dx, dy) → Visual (original_h - dy, dx) relative to visual center
-    const visualX = W / 2 + (window.innerHeight - dy);
-    const visualY = H / 2 + dx;
+    // Body (dx, dy) → Visual (dy, -dx) after 90° CW rotation
+    // Push right in body (dx>0) → visual down
+    // Push down in body (dy>0) → visual right
+    const visualAngle = Math.atan2(-dx, dy);
     ptr.active = true;
-    ptr.x = visualX;
-    ptr.y = visualY;
-    ptr.angle = Math.atan2(dx, window.innerHeight - dy);
-    ptr.dist = clampedDist * 4; // amplify for responsiveness
+    ptr.x = W / 2 + Math.cos(visualAngle) * clampedDist * 4;
+    ptr.y = H / 2 + Math.sin(visualAngle) * clampedDist * 4;
+    ptr.angle = visualAngle;
+    ptr.dist = clampedDist * 4;
 
-    // Speed from outer ring distance (farther = faster)
-    const speedFactor = Math.min(1, clampedDist / JOY_RADIUS);
-    const targetThrottle = 0.15 + speedFactor * 0.85;
-    jet.throttle += (targetThrottle - jet.throttle) * 0.15;
+    // Speed from distance: closer to center = slow, edge = full speed
+    const speedFactor = clampedDist / JOY_RADIUS;
+    const targetThrottle = 0.1 + speedFactor * 0.9;
+    jet.throttle += (targetThrottle - jet.throttle) * 0.3;
   }
 }
 
@@ -480,7 +480,7 @@ function drawEnemy(c,e,t){const sx=e.x-cam.x+W/2,sy=e.y-cam.y+H/2;if(sx<-100||sx
 const bullets=[];
 function fireBullet(){const c=Math.cos(jet.angle),s=Math.sin(jet.angle);const nX=168*JET_SCALE;const sp=(Math.random()-.5)*0.03;const bA=jet.angle+sp;const bLife=Math.max(1.8,CFG.bulletSpeed*0.003);bullets.push({x:jet.x+c*nX,y:jet.y+s*nX,vx:Math.cos(bA)*CFG.bulletSpeed,vy:Math.sin(bA)*CFG.bulletSpeed,age:0,life:bLife,damage:1})}
 function updateBullets(dt){jet.fireCooldown-=dt;if(jet.fireCooldown<=0){fireBullet();setTimeout(()=>fireBullet(),30);jet.fireCooldown=jet.fireRate}for(let i=bullets.length-1;i>=0;i--){const b=bullets[i];b.x+=b.vx*dt;b.y+=b.vy*dt;b.age+=dt;if(b.age>b.life){bullets.splice(i,1);continue}for(let j=enemies.length-1;j>=0;j--){const e=enemies[j];const dx=b.x-e.x,dy=b.y-e.y;const hitR=25*e.scale/0.3;if(dx*dx+dy*dy<hitR*hitR){e.hp-=b.damage;bullets.splice(i,1);if(e.hp<=0){const mul=Math.max(1,jet.combo);jet.score+=e.score*mul;jet.kills++;jet.combo++;jet.comboTimer=2.5;spawnExplosion(e.x,e.y,e.type==='bomber'?1.5:1);enemies.splice(j,1)}else{spawnHitSpark(b.x,b.y)}break}}}}
-function drawBullets(c,t){c.save();const bSpd=CFG.bulletSpeed;const spdScale=Math.max(1,bSpd/600);for(const b of bullets){const sx=b.x-cam.x+W/2,sy=b.y-cam.y+H/2;if(sx<-60||sx>W+60||sy<-60||sy>H+60)continue;const angle=Math.atan2(b.vy,b.vx);const trailLen=Math.max(35,spdScale*40);const g=c.createLinearGradient(sx,sy,sx-Math.cos(angle)*trailLen,sy-Math.sin(angle)*trailLen);g.addColorStop(0,'rgba(255,250,200,1)');g.addColorStop(0.3,'rgba(255,220,100,0.8)');g.addColorStop(1,'rgba(255,120,30,0)');c.strokeStyle=g;c.lineWidth=Math.max(3,spdScale*2);c.beginPath();c.moveTo(sx,sy);c.lineTo(sx-Math.cos(angle)*trailLen,sy-Math.sin(angle)*trailLen);c.stroke();c.fillStyle='rgba(255,255,240,1)';c.beginPath();c.arc(sx,sy,Math.max(3,spdScale*1.5),0,6.28);c.fill();c.fillStyle='rgba(255,220,120,0.5)';c.beginPath();c.arc(sx,sy,Math.max(10,spdScale*5),0,6.28);c.fill();c.fillStyle='rgba(255,160,60,0.18)';c.beginPath();c.arc(sx,sy,Math.max(20,spdScale*10),0,6.28);c.fill()}c.restore()}
+function drawBullets(c,t){c.save();const bSpd=CFG.bulletSpeed;const spdScale=Math.max(1,bSpd/600);for(const b of bullets){const sx=b.x-cam.x+W/2,sy=b.y-cam.y+H/2;if(sx<-60||sx>W+60||sy<-60||sy>H+60)continue;const angle=Math.atan2(b.vy,b.vx);const trailLen=Math.max(18,spdScale*20);const g=c.createLinearGradient(sx,sy,sx-Math.cos(angle)*trailLen,sy-Math.sin(angle)*trailLen);g.addColorStop(0,'rgba(255,250,200,1)');g.addColorStop(0.3,'rgba(255,220,100,0.8)');g.addColorStop(1,'rgba(255,120,30,0)');c.strokeStyle=g;c.lineWidth=Math.max(1.5,spdScale*1);c.beginPath();c.moveTo(sx,sy);c.lineTo(sx-Math.cos(angle)*trailLen,sy-Math.sin(angle)*trailLen);c.stroke();c.fillStyle='rgba(255,255,240,1)';c.beginPath();c.arc(sx,sy,Math.max(1.5,spdScale*0.8),0,6.28);c.fill();c.fillStyle='rgba(255,220,120,0.4)';c.beginPath();c.arc(sx,sy,Math.max(5,spdScale*2.5),0,6.28);c.fill();c.fillStyle='rgba(255,160,60,0.12)';c.beginPath();c.arc(sx,sy,Math.max(10,spdScale*5),0,6.28);c.fill()}c.restore()}
 
 // ─── Hit Sparks ────────────────────────────────────────────────
 const hitSparks=[];
