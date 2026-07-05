@@ -207,12 +207,12 @@ document.getElementById('btn-start').addEventListener('click', () => {
     const btn = document.getElementById('btn-boost');
     btn.style.display = 'block';
     if (isPortraitMobile()) {
-      // Body is rotated 90° CW: top-right in body space = visual bottom-left
+      // Body is rotated 90° CW: bottom-left in body space = visual top-right → opposite corner
       btn.style.position = 'fixed';
-      btn.style.top = '28px';
-      btn.style.right = '28px';
-      btn.style.left = 'auto';
-      btn.style.bottom = 'auto';
+      btn.style.bottom = '28px';
+      btn.style.left = '28px';
+      btn.style.top = 'auto';
+      btn.style.right = 'auto';
     }
     btn.style.zIndex = '50';
     // Try to lock landscape orientation
