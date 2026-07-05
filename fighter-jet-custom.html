@@ -109,7 +109,7 @@ canvas{display:block;position:fixed;top:0;left:0}
 <div id="hud-top" style="display:none">SCORE: 0</div>
 <div id="combo"></div>
 <div id="speed-bar" style="display:none"><div id="speed-fill"></div></div>
-<div id="hud-bottom" style="display:none">↑/W 加速 ↓/S 减速 ←→/AD 转向 SPACE 加力 · 自动开火</div>
+<div id="hud-bottom" style="display:none">鼠标/触屏控制方向 · 距离越远速度越快 · 键盘也可操作 · SPACE 加力</div>
 <div id="enemy-count"></div>
 
 <script>
@@ -195,6 +195,26 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 
+// ─── Pointer / Touch Input ─────────────────────────────────────
+const ptr = { active: false, x: 0, y: 0, dist: 0, angle: 0 };
+const DEAD_ZONE = 25;
+
+function updatePtr(px, py) {
+  ptr.active = true;
+  ptr.x = px; ptr.y = py;
+  const dx = px - W / 2, dy = py - H / 2;
+  ptr.dist = Math.sqrt(dx * dx + dy * dy);
+  if (ptr.dist > DEAD_ZONE) {
+    ptr.angle = Math.atan2(dy, dx);
+  }
+}
+
+canvas.addEventListener('mousemove', e => updatePtr(e.clientX, e.clientY));
+canvas.addEventListener('mouseleave', () => { ptr.active = false; });
+canvas.addEventListener('touchstart', e => { e.preventDefault(); updatePtr(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+canvas.addEventListener('touchmove', e => { e.preventDefault(); updatePtr(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+canvas.addEventListener('touchend', () => { ptr.active = false; });
+
 // ─── Jet State ─────────────────────────────────────────────────
 const JET_SCALE = 0.5;
 const jet = {
@@ -208,18 +228,34 @@ function updateJet(dt) {
   const turnRate = CFG.sensitivity;
   const turnDamp = 4.0;
   const throttleRate = CFG.accel;
+  const usingKeyboard = keys['ArrowLeft']||keys['ArrowRight']||keys['KeyA']||keys['KeyD'];
 
+  // ── Pointer steering ──
+  if (ptr.active && ptr.dist > DEAD_ZONE && !usingKeyboard) {
+    let angleDiff = ptr.angle - jet.angle;
+    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+    jet.angVel += angleDiff * Math.max(turnRate, 8) * dt;
+
+    // Distance from center → throttle (farther = faster)
+    const maxR = Math.min(W, H) * 0.4;
+    const targetThrottle = Math.min(1, Math.max(0.15, ptr.dist / maxR));
+    jet.throttle += (targetThrottle - jet.throttle) * 4 * dt;
+  }
+
+  // ── Keyboard steering (unchanged) ──
   if (keys['ArrowLeft']||keys['KeyA']) jet.angVel -= turnRate*dt;
   if (keys['ArrowRight']||keys['KeyD']) jet.angVel += turnRate*dt;
   jet.angVel *= (1-turnDamp*dt);
   jet.angle += jet.angVel*dt;
 
-  if (!keys['ArrowLeft']&&!keys['ArrowRight']&&!keys['KeyA']&&!keys['KeyD']) {
+  if (!usingKeyboard && (!ptr.active || ptr.dist <= DEAD_ZONE)) {
     while(jet.angle>Math.PI)jet.angle-=Math.PI*2;
     while(jet.angle<-Math.PI)jet.angle+=Math.PI*2;
     jet.angle *= (1-1.2*dt);
   }
 
+  // ── Keyboard throttle (can override pointer) ──
   if (keys['ArrowUp']||keys['KeyW']) jet.throttle=Math.min(1,jet.throttle+throttleRate*dt);
   if (keys['ArrowDown']||keys['KeyS']) jet.throttle=Math.max(0.1,jet.throttle-throttleRate*dt);
 
@@ -309,7 +345,10 @@ function spawnExplosion(x,y,scale){const count=Math.floor(35*scale);for(let i=0;
 function updateAndDrawExplosions(dt){sCtx.save();sCtx.globalCompositeOperation='lighter';for(let i=explosions.length-1;i>=0;i--){const p=explosions[i];p.age+=dt;if(p.age>p.life){explosions.splice(i,1);continue}p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=(1-2*dt);p.vy*=(1-2*dt);const sx=p.x-cam.x+W/2,sy=p.y-cam.y+H/2;if(sx<-100||sx>W+100||sy<-100||sy>H+100){explosions.splice(i,1);continue}const pr=p.age/p.life;if(p.ring){const radius=p.maxR*pr,al=(1-pr)*0.4;sCtx.strokeStyle=`rgba(${p.r},${p.g},${p.b},${al})`;sCtx.lineWidth=3*(1-pr);sCtx.beginPath();sCtx.arc(sx,sy,radius,0,6.28);sCtx.stroke()}else{const al=(1-pr)*0.8,sz=p.size*(1-pr*0.5);sCtx.fillStyle=`rgba(${p.r},${p.g},${p.b},${al})`;sCtx.beginPath();sCtx.arc(sx,sy,sz,0,6.28);sCtx.fill();if(pr<0.3){sCtx.fillStyle=`rgba(255,255,220,${(1-pr/0.3)*0.3})`;sCtx.beginPath();sCtx.arc(sx,sy,sz*2,0,6.28);sCtx.fill()}}}sCtx.restore()}
 
 // ─── Crosshair ─────────────────────────────────────────────────
-function drawCrosshair(c,t){const dist=120;const cx=W/2+Math.cos(jet.angle)*dist,cy=H/2+Math.sin(jet.angle)*dist;const pulse=0.6+0.2*Math.sin(t*4),r=14;c.save();c.strokeStyle=`rgba(255,200,120,${0.25*pulse})`;c.lineWidth=1;c.beginPath();c.arc(cx,cy,r,0,6.28);c.stroke();for(let i=0;i<4;i++){const a=i*Math.PI/2;c.beginPath();c.moveTo(cx+Math.cos(a)*(r+2),cy+Math.sin(a)*(r+2));c.lineTo(cx+Math.cos(a)*(r+2+5),cy+Math.sin(a)*(r+2+5));c.stroke()}c.fillStyle=`rgba(255,200,120,${0.4*pulse})`;c.beginPath();c.arc(cx,cy,1.5,0,6.28);c.fill();c.restore()}
+function drawCrosshair(c,t){const dist=120;const cx=W/2+Math.cos(jet.angle)*dist,cy=H/2+Math.sin(jet.angle)*dist;const pulse=0.6+0.2*Math.sin(t*4),r=14;c.save();c.strokeStyle=`rgba(255,200,120,${0.25*pulse})`;c.lineWidth=1;c.beginPath();c.arc(cx,cy,r,0,6.28);c.stroke();for(let i=0;i<4;i++){const a=i*Math.PI/2;c.beginPath();c.moveTo(cx+Math.cos(a)*(r+2),cy+Math.sin(a)*(r+2));c.lineTo(cx+Math.cos(a)*(r+2+5),cy+Math.sin(a)*(r+2+5));c.stroke()}c.fillStyle=`rgba(255,200,120,${0.4*pulse})`;c.beginPath();c.arc(cx,cy,1.5,0,6.28);c.fill();
+// Pointer aim indicator
+if(ptr.active&&ptr.dist>DEAD_ZONE){c.strokeStyle='rgba(255,200,120,0.1)';c.lineWidth=1;c.setLineDash([4,8]);c.beginPath();c.moveTo(W/2,H/2);c.lineTo(ptr.x,ptr.y);c.stroke();c.setLineDash([]);c.fillStyle='rgba(255,200,120,0.25)';c.beginPath();c.arc(ptr.x,ptr.y,5,0,6.28);c.fill()}
+c.restore()}
 
 // ─── Enemy Indicators ──────────────────────────────────────────
 function drawEnemyIndicators(c){for(const e of enemies){const sx=e.x-cam.x+W/2,sy=e.y-cam.y+H/2;if(sx>20&&sx<W-20&&sy>20&&sy<H-20)continue;const angle=Math.atan2(sy-H/2,sx-W/2);const eX=W/2+Math.cos(angle)*(W/2-30),eY=H/2+Math.sin(angle)*(H/2-30);const cx=Math.max(20,Math.min(W-20,eX)),cy=Math.max(20,Math.min(H-20,eY));c.save();c.translate(cx,cy);c.rotate(angle);c.fillStyle='rgba(255,80,60,0.4)';c.beginPath();c.moveTo(8,0);c.lineTo(-4,-5);c.lineTo(-4,5);c.closePath();c.fill();c.restore()}}
