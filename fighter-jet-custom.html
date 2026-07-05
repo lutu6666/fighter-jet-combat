@@ -25,7 +25,9 @@ canvas{display:block;position:fixed;top:0;left:0}
 .slider-group{margin-bottom:16px}
 .slider-group label{display:flex;justify-content:space-between;align-items:baseline;
   font:12px/1 'Courier New',monospace;color:rgba(180,190,200,0.7);margin-bottom:6px;letter-spacing:1px}
-.slider-group label span.val{color:rgba(255,200,120,0.8);font-weight:700;min-width:48px;text-align:right}
+.slider-group label span.val{color:rgba(255,200,120,0.8);font-weight:700;min-width:56px;text-align:right;
+  border-bottom:1px dashed rgba(255,200,120,0.25);padding:0 4px;outline:none;cursor:text}
+.slider-group label span.val:focus{border-bottom-color:rgba(255,200,120,0.6)}
 .slider-group input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;
   background:rgba(255,255,255,0.08);outline:none;cursor:pointer}
 .slider-group input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;
@@ -75,28 +77,28 @@ canvas{display:block;position:fixed;top:0;left:0}
     <div class="sub">ADJUST PARAMETERS BEFORE LAUNCH</div>
 
     <div class="slider-group">
-      <label>飞行速度 MAX SPEED <span class="val" id="v-speed">550</span></label>
-      <input type="range" id="s-speed" min="200" max="1200" value="550" step="10">
+      <label>飞行速度 MAX SPEED <span class="val" id="v-speed" contenteditable="true">550</span></label>
+      <input type="range" id="s-speed" min="10" max="50000" value="550" step="10">
     </div>
     <div class="slider-group">
-      <label>子弹速度 BULLET SPEED <span class="val" id="v-bullet">900</span></label>
-      <input type="range" id="s-bullet" min="300" max="2000" value="900" step="50">
+      <label>子弹速度 BULLET SPEED <span class="val" id="v-bullet" contenteditable="true">900</span></label>
+      <input type="range" id="s-bullet" min="10" max="100000" value="900" step="10">
     </div>
     <div class="slider-group">
-      <label>敌机数量 MAX ENEMIES <span class="val" id="v-enemies">10</span></label>
-      <input type="range" id="s-enemies" min="2" max="40" value="10" step="1">
+      <label>敌机数量 MAX ENEMIES <span class="val" id="v-enemies" contenteditable="true">10</span></label>
+      <input type="range" id="s-enemies" min="0" max="500" value="10" step="1">
     </div>
     <div class="slider-group">
-      <label>敌机大小 ENEMY SIZE <span class="val" id="v-esize">1.0×</span></label>
-      <input type="range" id="s-esize" min="0.3" max="2.5" value="1.0" step="0.1">
+      <label>敌机大小 ENEMY SIZE <span class="val" id="v-esize" contenteditable="true">1.0×</span></label>
+      <input type="range" id="s-esize" min="0.05" max="20" value="1.0" step="0.05">
     </div>
     <div class="slider-group">
-      <label>加速度 ACCEL <span class="val" id="v-accel">1.4</span></label>
-      <input type="range" id="s-accel" min="0.3" max="4.0" value="1.4" step="0.1">
+      <label>加速度 ACCEL <span class="val" id="v-accel" contenteditable="true">1.4</span></label>
+      <input type="range" id="s-accel" min="0.01" max="200" value="1.4" step="0.1">
     </div>
     <div class="slider-group">
-      <label>灵敏度 SENSITIVITY <span class="val" id="v-sense">5.5</span></label>
-      <input type="range" id="s-sense" min="1.0" max="15.0" value="5.5" step="0.5">
+      <label>灵敏度 SENSITIVITY <span class="val" id="v-sense" contenteditable="true">5.5</span></label>
+      <input type="range" id="s-sense" min="0.1" max="500" value="5.5" step="0.1">
     </div>
 
     <div class="divider"></div>
@@ -127,21 +129,35 @@ const CFG = {
 
 // ─── Settings Panel Logic ──────────────────────────────────────
 const sliders = [
-  { id:'s-speed',   vid:'v-speed',   key:'maxSpeed',     fmt:v=>v },
-  { id:'s-bullet',  vid:'v-bullet',  key:'bulletSpeed',  fmt:v=>v },
-  { id:'s-enemies', vid:'v-enemies',  key:'maxEnemies',   fmt:v=>v },
-  { id:'s-esize',   vid:'v-esize',   key:'enemySizeMul', fmt:v=>v.toFixed(1)+'×' },
-  { id:'s-accel',   vid:'v-accel',   key:'accel',        fmt:v=>parseFloat(v).toFixed(1) },
-  { id:'s-sense',   vid:'v-sense',   key:'sensitivity',  fmt:v=>parseFloat(v).toFixed(1) }
+  { id:'s-speed',   vid:'v-speed',   key:'maxSpeed',     fmt:v=>Math.round(v),     parse:v=>parseFloat(v)||550 },
+  { id:'s-bullet',  vid:'v-bullet',  key:'bulletSpeed',  fmt:v=>Math.round(v),     parse:v=>parseFloat(v)||900 },
+  { id:'s-enemies', vid:'v-enemies',  key:'maxEnemies',   fmt:v=>Math.round(v),     parse:v=>Math.max(0,parseInt(v)||0) },
+  { id:'s-esize',   vid:'v-esize',   key:'enemySizeMul', fmt:v=>v.toFixed(1)+'×',  parse:v=>parseFloat(v)||1 },
+  { id:'s-accel',   vid:'v-accel',   key:'accel',        fmt:v=>parseFloat(v).toFixed(1), parse:v=>parseFloat(v)||1.4 },
+  { id:'s-sense',   vid:'v-sense',   key:'sensitivity',  fmt:v=>parseFloat(v).toFixed(1), parse:v=>parseFloat(v)||5.5 }
 ];
 
 sliders.forEach(s => {
   const input = document.getElementById(s.id);
   const valEl = document.getElementById(s.vid);
+
+  // Slider → value display
   input.addEventListener('input', () => {
     const v = parseFloat(input.value);
     CFG[s.key] = v;
     valEl.textContent = s.fmt(v);
+  });
+
+  // Direct text input → slider + config
+  valEl.addEventListener('blur', () => {
+    const raw = valEl.textContent.replace('×','').trim();
+    const v = s.parse(raw);
+    CFG[s.key] = v;
+    input.value = Math.max(parseFloat(input.min), Math.min(parseFloat(input.max), v));
+    valEl.textContent = s.fmt(v);
+  });
+  valEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); valEl.blur(); }
   });
 });
 
