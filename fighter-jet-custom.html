@@ -208,12 +208,10 @@ document.getElementById('btn-start').addEventListener('click', () => {
     // Move button outside <body> so it's not affected by CSS rotation transform
     document.documentElement.appendChild(btn);
     // Position using real viewport dimensions
-    const vw = Math.max(window.innerWidth, window.innerHeight);
-    const vh = Math.min(window.innerWidth, window.innerHeight);
     btn.style.display = 'block';
     btn.style.position = 'fixed';
     btn.style.left = '28px';
-    btn.style.top = (vh - 100) + 'px';
+    btn.style.top = (window.innerHeight - 100) + 'px';
     btn.style.zIndex = '9999';
     // Try to lock landscape orientation
     if (screen.orientation && screen.orientation.lock) {
