@@ -205,14 +205,16 @@ document.getElementById('btn-start').addEventListener('click', () => {
   const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
   if (isTouch) {
     const btn = document.getElementById('btn-boost');
-    // Move button outside <body> so it's not affected by CSS rotation transform
-    document.documentElement.appendChild(btn);
-    // Position using real viewport dimensions
     btn.style.display = 'block';
-    btn.style.position = 'fixed';
-    btn.style.left = '28px';
-    btn.style.top = (window.innerHeight - 100) + 'px';
-    btn.style.zIndex = '9999';
+    if (isPortraitMobile()) {
+      // Body is rotated 90° CW: top-right in body space = visual bottom-left
+      btn.style.position = 'fixed';
+      btn.style.top = '28px';
+      btn.style.right = '28px';
+      btn.style.left = 'auto';
+      btn.style.bottom = 'auto';
+    }
+    btn.style.zIndex = '50';
     // Try to lock landscape orientation
     if (screen.orientation && screen.orientation.lock) {
       screen.orientation.lock('landscape').catch(() => {});
